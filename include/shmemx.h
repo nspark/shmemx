@@ -6,6 +6,10 @@
 
 #if defined(__STDC_VERSION__) && (__STDC_VERSION__ == 201112L)
 
+/*
+  SHMEMX RMA Routines using C11 Generics
+ */
+
 #define shmemx_put(dst, src, len, pe)                           \
   _Generic((dst),                                               \
            double*:      shmem_double_put,                      \
@@ -30,6 +34,28 @@
            short*:       shmem_short_get,                       \
            uint32_t*:    shmem_get32,                           \
            uint64_t*:    shmem_get64)(dst, src, len, pe)
+
+// N.B., shmem_char_p is missing from shmem.h in OSHMEM 1.8.6
+#define shmemx_p(dst, val, pe)                                  \
+  _Generic((dst),                                               \
+           short*:       shmem_short_p,                         \
+           int*:         shmem_int_p,                           \
+           long*:        shmem_long_p,                          \
+           long long*:   shmem_longlong_p,                      \
+           float*:       shmem_float_p,                         \
+           double*:      shmem_double_p,                        \
+           long double*: shmem_longdouble_p)(dst, val, pe)
+
+#define shmemx_g(dst, pe)                                       \
+  _Generic((dst),                                               \
+           char*:        shmem_char_g,                          \
+           short*:       shmem_short_g,                         \
+           int*:         shmem_int_g,                           \
+           long*:        shmem_long_g,                          \
+           long long*:   shmem_longlong_g,                      \
+           float*:       shmem_float_g,                         \
+           double*:      shmem_double_g,                        \
+           long double*: shmem_longdouble_g)(dst, pe)
 
 #endif
 
