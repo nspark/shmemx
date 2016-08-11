@@ -1,8 +1,9 @@
 #
-# Basic Chapel Makefile
+# "Basic" Makefile
 #
 
-.SECONDARY	= $(EXES)
+.PHONY		: all check
+.SECONDARY	: $(EXES) $(OBJS) $(LIBS)
 
 SRCDIR		= src
 INCDIR		= include
@@ -10,31 +11,51 @@ TSTDIR		= test
 OBJDIR		= obj
 LIBDIR		= lib
 BINDIR		= bin
+DIRS		= $(BINDIR) $(LIBDIR) $(OBJDIR)
 
-SRCS		= $(wildcard $(TSTDIR)/*.c)
-EXES		= $(patsubst $(TSTDIR)/%.c,$(BINDIR)/%,$(SRCS))
-TSTS		= $(patsubst $(TSTDIR)/%.c,$(BINDIR)/%.tt,$(SRCS))
+LIBNAME		= shmemx
+LIBSRC		= $(wildcard $(SRCDIR)/*.c)
+EXESRC		= $(wildcard $(TSTDIR)/*.c)
+OBJS		= $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(LIBSRC))
+LIBS		= $(LIBDIR)/lib$(LIBNAME).a
+EXES		= $(patsubst $(TSTDIR)/%.c,$(BINDIR)/%,$(EXESRC))
+TSTS		= $(patsubst $(TSTDIR)/%.c,$(BINDIR)/%.tt,$(EXESRC))
 
-ENV		= OSHMEM_CC=gcc-4.9
-CC		= oshcc
+ifdef CC
+ENV		= OSHMEM_CC=$(CC)
+endif
+OSHCC		= oshcc
 CFLAGS		= -O3 -std=c11 -Wall -Wextra -pedantic -Werror
 CPPFLAGS	= -D_POSIX_VERSION=200809L -D_XOPEN_VERSION=700 -I$(INCDIR)
+LDFLAGS		= -L$(LIBDIR) -l$(LIBNAME)
+
+ifdef NPES
+_NPES		= $(NPES)
+else
+_NPES		= 16
+endif
 
 LAUNCHCMD	= oshrun
-LAUNCHOPT	= --mca sshmem mmap -n 16
+LAUNCHOPT	= -n $(_NPES)
 
-all:		$(EXES)
+all:		$(DIRS) $(EXES)
 
-test:		$(TSTS)
+check:		$(TSTS)
 
 clean:
 		rm -rf $(BINDIR)/*
 
 CLEAN:
-		rm -rf $(BINDIR) $(LIBDIR) $(OBJDIR)
+		rm -rf $(DIRS)
 
-$(BINDIR)/%	: $(TSTDIR)/%.c $(BINDIR)
-		$(ENV) $(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
+$(OBJDIR)/%.o	: $(SRCDIR)/%.c
+		$(ENV) $(OSHCC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+
+$(LIBDIR)/%.a	: $(OBJS)
+		ar r $@ $<
+
+$(BINDIR)/%	: $(TSTDIR)/%.c $(LIBDIR)/lib$(LIBNAME).a
+		$(ENV) $(OSHCC) $(CPPFLAGS) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 $(BINDIR)/%.tt	: $(BINDIR)/%
 		$(LAUNCHCMD) $(LAUNCHOPT) $<
