@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <shmem.h>
 
+#define LOCATION "%s:%d: "
+
 #define RESET    "\x1b[0m"
 #define BOLD     "\x1b[1m"
 
@@ -13,6 +15,7 @@
 #define YELLOW   "\x1b[33m"
 
 #define ERROR    BOLD RED "error (PE %d): " RESET
+#define WARNING  YELLOW "warning (PE %d): " RESET
 
 #define ERRTAG   "\x1b[31;1m[ERROR]\x1b[0m "
 #define WARNTAG  "\x1b[33m[WARNING]\x1b[0m "
@@ -20,9 +23,15 @@
 #define shmem_global_exit(STATUS)                               \
   /* fprintf(stderr, "shmem_global_exit(%d)\n", (STATUS)) */
 
+#define SHMEM_WARNING(NAME, MSG)                \
+  fprintf(stderr, BOLD LOCATION RESET WARNING   \
+          "%s() called with %s\n",              \
+          __FILE__, __LINE__, shmem_my_pe(),    \
+          (NAME), (MSG))
+
 #define SHMEM_FATAL_ERROR(NAME, ERRMSG)         \
   do {                                          \
-    fprintf(stderr, BOLD "%s:%d: " RESET ERROR  \
+    fprintf(stderr, BOLD LOCATION RESET ERROR   \
             "%s() called with %s\n",            \
             __FILE__, __LINE__, shmem_my_pe(),  \
             (NAME), (ERRMSG));                  \
@@ -31,7 +40,7 @@
 
 #define SHMEM_FATAL_ERROR_FMT(NAME, ERRFMT, ...)        \
   do {                                                  \
-    fprintf(stderr, BOLD "%s:%d: " RESET ERROR          \
+    fprintf(stderr, BOLD LOCATION RESET ERROR           \
             "%s() called with " ERRFMT "\n",            \
             __FILE__, __LINE__, shmem_my_pe(),          \
             (NAME), __VA_ARGS__);                       \
@@ -78,7 +87,7 @@ static long debug_coll_eq_dst = 0;
 static long debug_coll_eq_pWork[SHMEM_REDUCE_MIN_WRKDATA_SIZE];
 static long debug_coll_eq_pSync[SHMEM_REDUCE_SYNC_SIZE];
 
-#define VERIFY_COLL_EQUALITY(VALUE, START, LOGSTRIDE, SIZE, NAME)       \
+#define TEST_COLL_EQUALITY(RESULT, VALUE, START, LOGSTRIDE, SIZE)       \
   do {                                                                  \
     debug_coll_eq_src = (long)(VALUE);                                  \
     debug_coll_eq_dst = 0;                                              \
@@ -94,7 +103,14 @@ static long debug_coll_eq_pSync[SHMEM_REDUCE_SYNC_SIZE];
                          debug_coll_eq_pWork,                           \
                          debug_coll_eq_pSync);                          \
     long or_all = debug_coll_eq_dst;                                    \
-    if (and_all != or_all)                                              \
+    (RESULT) = (and_all == or_all);                                     \
+  } while (false)
+
+#define VERIFY_COLL_EQUALITY(VALUE, START, LOGSTRIDE, SIZE, NAME)       \
+  do {                                                                  \
+    bool equal = false;                                                 \
+    TEST_COLL_EQUALITY(equal, (VALUE), (START), (LOGSTRIDE), (SIZE));   \
+    if (!equal)                                                         \
       SHMEM_FATAL_ERROR_FMT((NAME),                                     \
                             "argument %s must be equal across all PEs", \
                             #VALUE);                                    \
@@ -172,10 +188,14 @@ static long debug_coll_eq_pSync[SHMEM_REDUCE_SYNC_SIZE];
 
 #endif /* OpenSHMEM >= 1.3 */
 
-#define shmem_barrier_all()                     \
-  do {                                          \
-                                                \
-    shmem_barrier_all();                        \
+#define shmem_barrier_all()                                             \
+  do {                                                                  \
+    bool notsplit = false;                                              \
+    /* This should check more than just __LINE__. */                    \
+    TEST_COLL_EQUALITY(notsplit, __LINE__, 0, 0, shmem_n_pes());        \
+    if (!notsplit)                                                      \
+      SHMEM_WARNING("shmem_barrier_all", "split control flow");         \
+    shmem_barrier_all();                                                \
   } while (false)
 
 #endif

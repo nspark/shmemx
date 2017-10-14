@@ -47,6 +47,14 @@ int main()
     shmem_free(mem1);
   }
 
+  {
+    // warning: split control-flow for collectives
+    if (mype % 2)
+      shmem_barrier_all();
+    else
+      shmem_barrier_all();
+  }
+
   shmem_finalize();
 
   return 0;
